@@ -56,12 +56,21 @@ public class ApiClient {
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody);
         }
-        return requestSpec
+
+        Mono<R> responseMono = requestSpec
                 .retrieve()
-                .bodyToMono(responseType)
-                .retryWhen(Retry.fixedDelay(3, Duration.ofSeconds(2)));
-        // uses exponential backoff: waits longer after each failure (e.g. 1s → 2s → 4s)
-        // .retryWhen(Retry.backoff(3, Duration.ofSeconds(1)))
+                .bodyToMono(responseType);
+
+        // Apply retry ONLY for GET
+        if (method == ApiMethod.GET) {
+            responseMono = responseMono.retryWhen(Retry.backoff(3, Duration.ofSeconds(1)));
+
+            // uses exponential backoff: waits longer after each failure (e.g. 1s → 2s → 4s)
+            // .retryWhen(Retry.backoff(3, Duration.ofSeconds(1)))
+            // .retryWhen(Retry.fixedDelay(3, Duration.ofSeconds(2)))
+        }
+
+        return responseMono;
     }
 
     private HttpMethod convertToHttpMethod(ApiMethod method) {
